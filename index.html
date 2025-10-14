@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adaptive Assessment (MAP-like) — One-Time Code Protected</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #161a2b;
+      --muted: #8b93a7;
+      --fg: #e8ecf3;
+      --accent: #6ea8fe;
+      --accent-2: #9bdb6b;
+      --warn: #ffb454;
+      --err: #ff6b6b;
+      --ok: #65d19e;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 650px at 20% -10%, #20274b 0%, transparent 60%),
+                  radial-gradient(1000px 600px at 120% 10%, #1c2547 0%, transparent 50%),
+                  var(--bg);
+      color: var(--fg);
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0;
+      letter-spacing: 0.3px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .stack { display: grid; gap: 16px; }
+
+    label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 6px; }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      background: #0e1322;
+      color: var(--fg);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 120ms ease;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+
+    button {
+      appearance: none;
+      border: 0;
+      background: linear-gradient(180deg, #3b6edb, #2b54ac);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(59,110,219,0.3);
+      transition: transform 80ms ease, filter 120ms ease;
+    }
+    button:hover { filter: brightness(1.05); }
+    button:active { transform: translateY(1px); }
+    button.secondary { background: linear-gradient(180deg, #3b3f55, #2b2e40); box-shadow: 0 6px 14px rgba(0,0,0,0.4); }
+    button.warn { background: linear-gradient(180deg, #ffb454, #cf8a34); box-shadow: 0 6px 14px rgba(207,138,52,0.35); }
+    button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--fg); }
+
+    .note { color: var(--muted); font-size: 0.9rem; }
+    .hint { color: var(--muted); font-size: 0.85rem; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .col-5 { grid-column: span 5; }
+    .col-7 { grid-column: span 7; }
+    .col-12 { grid-column: 1 / -1; }
+
+    @media (max-width: 900px) {
+      .col-5, .col-7 { grid-column: 1 / -1; }
+    }
+
+    .proctor-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; user-select: none; }
+
+    .hidden { display: none !important; }
+
+    .badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.15); color: var(--muted); }
+
+    .status {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem;
+    }
+
+    .question-card { padding: 20px; }
+    .question {
+      font-size: 1.05rem;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .choices { display: grid; gap: 10px; }
+    .choice {
+      background: #0e1322;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .choice:hover { border-color: var(--accent); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
+      background: #0b1020; border: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-size: 0.85rem;
+    }
+
+    .bars { display: grid; gap: 8px; }
+    .bar { height: 10px; border-radius: 999px; background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); position: relative; overflow: hidden; }
+    .bar > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, #6ea8fe, #9bdb6b); }
+
+    .result-table { width: 100%; border-collapse: collapse; }
+    .result-table th, .result-table td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; }
+
+    .footer-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.2), rgba(255,255,255,0)); margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Adaptive Assessment (MAP-like)</h1>
+      <div class="status">
+        <span class="badge" id="status-lock">Locked</span>
+        <span class="badge" id="status-grade">Grade: —</span>
+        <span class="badge" id="status-progress">0 / 30</span>
+        <button id="btn-admin" class="ghost">Admin</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card col-5" id="access-card">
+        <div class="stack">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <strong>Access Control</strong>
+          </div>
+
+          <div id="proctor-panel" class="hidden">
+            <div class="note" style="margin-bottom:8px;">Seed drives one-time code generation (TOTP-like). Set once per session.</div>
+            <label for="seed-input">Seed (keep private)</label>
+            <input id="seed-input" type="text" placeholder="Enter secure seed" />
+            <div class="row">
+              <button id="btn-save-seed" class="secondary">Save Seed</button>
+              <button id="btn-gen-code" class="ghost">Generate Current Code</button>
+            </div>
+            <div class="hint" id="code-out">Code: —</div>
+            <div class="hint" id="code-window">Window: —</div>
+            <div class="divider"></div>
+          </div>
+
+          <label for="code-input">Enter one-time code</label>
+          <input id="code-input" type="text" inputmode="numeric" placeholder="6 digits" maxlength="8" />
+          <div class="row">
+            <button id="btn-verify">Verify Code</button>
+            <span id="verify-msg" class="note"></span>
+          </div>
+
+          <div class="divider"></div>
+
+          <label for="name-input">Test taker name</label>
+          <input id="name-input" type="text" placeholder="Enter your full name" />
+
+          <label for="grade-select">Grade</label>
+          <select id="grade-select" disabled>
+            <option value="8" selected>8</option>
+          </select>
+          <button id="btn-begin" class="warn" disabled>Begin Assessment</button>
+          <div class="hint">Name and a valid code are required before starting.</div>
+        </div>
+      </section>
+
+      <section class="card col-7 question-card" id="test-card">
+        <div id="pretest">
+          <div class="note">Awaiting access code and grade selection.</div>
+        </div>
+        <div id="assessment" class="hidden">
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
+            <div class="pill" id="pill-domain">Domain: —</div>
+            <div class="pill" id="pill-diff">Target RIT: —</div>
+          </div>
+          <div class="question" id="q-text"></div>
+          <div class="choices" id="q-choices"></div>
+        </div>
+        <div id="results" class="hidden">
+          <h3 style="margin-top:0;">Results</h3>
+          <div id="summary"></div>
+          <div class="divider"></div>
+          <table class="result-table" id="domain-table"></table>
+          <div class="divider"></div>
+          <div class="footer-actions">
+            <button id="btn-restart" class="ghost">Restart</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <div class="bars" id="progress-bars"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Speed-gating modal (proctor-required) -->
+  <div id="speed-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;">
+    <div class="card" style="max-width:420px;width:92%;background:var(--panel);">
+      <h3 style="margin-top:0;">Paused for Proctor Review</h3>
+      <div id="speed-msg" class="note" style="margin-bottom:8px;">Answering too quickly detected. Proctor code required to continue.</div>
+      <label for="speed-code">Enter proctor code</label>
+      <input id="speed-code" type="password" inputmode="numeric" maxlength="8" placeholder="Proctor code" />
+      <div class="row" style="margin-top:8px;">
+        <button id="speed-verify">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin modal -->
+  <div id="admin-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999;padding:12px;">
+    <div class="card" style="max-width:860px;width:96%;max-height:92vh;overflow:auto;background:var(--panel);">
+      <h3 style="margin-top:0;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span>Admin Access</span>
+        <button id="admin-close" class="ghost" style="flex-shrink:0;">Close</button>
+      </h3>
+      <div id="admin-step-login">
+        <div class="note" style="margin-bottom:8px;">Enter a one-time admin code generated from code-generator.html.</div>
+        <label for="admin-code">Admin code</label>
+        <input id="admin-code" type="password" inputmode="text" maxlength="64" placeholder="Enter admin code" />
+        <div class="row" style="margin-top:8px;">
+          <button id="admin-verify">Verify</button>
+          <span id="admin-msg" class="note"></span>
+        </div>
+      </div>
+      <div id="admin-step-view" class="hidden">
+        <div class="row" style="justify-content:space-between;align-items:center;">
+          <strong>Previous Results</strong>
+          <div class="row" style="gap:8px;align-items:center;">
+            <button id="admin-delete" class="warn">Delete Selected</button>
+            <button id="admin-refresh" class="secondary">Refresh</button>
+          </div>
+        </div>
+        <div class="row" style="align-items:center;gap:8px;margin-top:8px;">
+          <label class="note" for="admin-select" style="margin:0;">Select record</label>
+          <select id="admin-select" style="width:100%;"></select>
+        </div>
+        <div id="admin-list" class="card" style="margin-top:10px;">
+          <div class="note">Saved test takers</div>
+          <div id="admin-names" style="margin-top:6px;"></div>
+        </div>
+        <div id="admin-viz" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+},{
+
+  <script>
+    // --- Config ---
+    const QUESTIONS_PER_DOMAIN = 10; // total 30 questions (3 domains)
+    const DOMAINS = ["Math", "Reading", "Language Arts"];
+
+    const START_RIT_BY_GRADE = {
+      "K": 140, "1": 155, "2": 170, "3": 185, "4": 195, "5": 205,
+      "6": 210, "7": 215, "8": 220, "9": 225, "10": 230, "11": 235, "12": 240
+    };
+
+    // --- Utilities ---
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+
+
+
+    // --- TOTP-like 6-digit codes using Web Crypto HMAC (SHA-256) ---
+    const timeStepSec = 30; // valid 30s window
+    const codeDigits = 6;
+
+    async function hmacSha256(keyBytes, msgBytes) {
+      const key = await crypto.subtle.importKey(
+        "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, msgBytes);
+      return new Uint8Array(sig);
+    }
+
+    function textToBytes(str) { return new TextEncoder().encode(str); }
+
+    function numTo8ByteBE(num) {
+      const arr = new Uint8Array(8);
+      for (let i = 7; i >= 0; i--) { arr[i] = num & 0xff; num = Math.floor(num / 256); }
+      return arr;
+    }
+
+    async function deriveKeyBytes(seed) {
+      // Derive a stable 32-byte key from the seed string using SHA-256
+      const digest = await crypto.subtle.digest("SHA-256", textToBytes(seed));
+      return new Uint8Array(digest);
+    }
+
+    async function generateCodeForCounter(seed, counter) {
+      const keyBytes = await deriveKeyBytes(seed);
+      const msg = numTo8ByteBE(counter);
+      const hmac = await hmacSha256(keyBytes, msg);
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const bin = ((hmac[offset] & 0x7f) << 24) | (hmac[offset + 1] << 16) | (hmac[offset + 2] << 8) | (hmac[offset + 3]);
+      const code = (bin % (10 ** codeDigits)).toString().padStart(codeDigits, "0");
+      return code;
+    }
+
+    async function getValidCodes(seed) {
+      const t = Math.floor(Date.now() / 1000);
+      const ctr = Math.floor(t / timeStepSec);
+      return {
+        window: ctr,
+        codes: [
+          await generateCodeForCounter(seed, ctr - 1),
+          await generateCodeForCounter(seed, ctr),
+          await generateCodeForCounter(seed, ctr + 1),
+        ],
+        expiresIn: timeStepSec - (t % timeStepSec)
+      };
+    }
+
+    function markWindowUsed(seed, win) {
+      const k = `used-${seed}-${win}`;
+      localStorage.setItem(k, "1");
+    }
+
+    function isWindowUsed(seed, win) {
+      const k = `used-${seed}-${win}`;
+      return localStorage.getItem(k) === "1";
+    }
+
+    // --- Question Bank ---
+    function createBank(grade) {
+      // Difficulty is set in approximate RIT scale
+      // Each item: {id, domain, skill, difficultyRIT, prompt, choices, correct}
+      const g = grade;
+      const base = START_RIT_BY_GRADE[g] ?? 200;
+
+      const math = [
+        { id: "m1", domain: "Math", skill: "Arithmetic", difficultyRIT: base - 15, prompt: "What is 7 + 6?", choices: ["11", "12", "13", "14", "Not sure"], correct: 2 },
+        { id: "m2", domain: "Math", skill: "Arithmetic", difficultyRIT: base - 10, prompt: "What is 8 + 7?", choices: ["13", "14", "15", "16", "Not sure"], correct: 2 },
+        { id: "m3", domain: "Math", skill: "Arithmetic", difficultyRIT: base - 5, prompt: "What is 36 ÷ 6?", choices: ["5", "6", "7", "8", "Not sure"], correct: 1 },
+        { id: "m4", domain: "Math", skill: "Fractions", difficultyRIT: base + 0, prompt: "Which is greater?", choices: ["3/5", "2/3", "4/7", "1/2", "Not sure"], correct: 1 },
+        { id: "m5", domain: "Math", skill: "Fractions", difficultyRIT: base + 5, prompt: "Which is larger?", choices: ["5/8", "3/4", "2/3", "4/5", "Not sure"], correct: 3 },
+        { id: "m6", domain: "Math", skill: "Algebra", difficultyRIT: base + 10, prompt: "Solve for x: 3x − 5 = 10", choices: ["x = 3", "x = 5", "x = 7", "x = 15", "Not sure"], correct: 1 },
+        { id: "m7", domain: "Math", skill: "Geometry", difficultyRIT: base + 12, prompt: "Sum of interior angles of a triangle?", choices: ["90°", "180°", "270°", "360°", "Not sure"], correct: 1 },
+        { id: "m8", domain: "Math", skill: "Data & Probability", difficultyRIT: base + 15, prompt: "A fair die is rolled. P(roll > 4)?", choices: ["1/6", "1/3", "1/2", "2/3", "Not sure"], correct: 1 },
+        { id: "m9", domain: "Math", skill: "Algebra", difficultyRIT: base + 18, prompt: "Solve: 2x + 7 = 19", choices: ["x = 5", "x = 6", "x = 12", "x = 26", "Not sure"], correct: 1 },
+        { id: "m10", domain: "Math", skill: "Functions", difficultyRIT: base + 22, prompt: "If f(x)=2x^2−3x+1, find f(3)", choices: ["10", "12", "13", "16", "Not sure"], correct: 2 },
+        { id: "m11", domain: "Math", skill: "Trigonometry", difficultyRIT: base + 28, prompt: "sin(30°) = ?", choices: ["0", "1/2", "√2/2", "√3/2", "Not sure"], correct: 1 },
+        { id: "m12", domain: "Math", skill: "Exponents", difficultyRIT: base + 30, prompt: "What is 2^5?", choices: ["16", "32", "64", "128", "Not sure"], correct: 1 },
+      ];
+
+      const reading = [
+        { id: "r1", domain: "Reading", skill: "Vocabulary", difficultyRIT: base - 15, prompt: "Select the synonym for ‘happy’.", choices: ["sad", "joyful", "angry", "tired", "Not sure"], correct: 1 },
+        { id: "r2", domain: "Reading", skill: "Main Idea", difficultyRIT: base - 10, prompt: "The main idea is the...", choices: ["shortest sentence", "central point of a text", "first paragraph", "title", "Not sure"], correct: 1 },
+        { id: "r3", domain: "Reading", skill: "Details", difficultyRIT: base - 5, prompt: "A supporting detail is...", choices: ["the theme", "evidence that backs the main idea", "the title", "the author", "Not sure"], correct: 1 },
+        { id: "r4", domain: "Reading", skill: "Inference", difficultyRIT: base + 0, prompt: "If a character slams a door, you might infer they are...", choices: ["calm", "bored", "upset", "confused", "Not sure"], correct: 2 },
+        { id: "r5", domain: "Reading", skill: "Structure", difficultyRIT: base + 5, prompt: "A compare/contrast text primarily...", choices: ["tells a story", "gives instructions", "explains similarities and differences", "argues a viewpoint", "Not sure"], correct: 2 },
+        { id: "r6", domain: "Reading", skill: "Evidence", difficultyRIT: base + 10, prompt: "Strong textual evidence is...", choices: ["a personal opinion", "a direct quote or paraphrase", "a guess", "a thesis", "Not sure"], correct: 1 },
+        { id: "r7", domain: "Reading", skill: "Author Purpose", difficultyRIT: base + 15, prompt: "‘Persuade’ means the author wants to...", choices: ["entertain", "inform", "convince", "describe", "Not sure"], correct: 2 },
+        { id: "r8", domain: "Reading", skill: "Rhetoric", difficultyRIT: base + 20, prompt: "Pathos appeals to...", choices: ["logic", "ethics", "emotion", "credibility", "Not sure"], correct: 2 },
+        { id: "r9", domain: "Reading", skill: "Point of View", difficultyRIT: base + 22, prompt: "First-person POV uses...", choices: ["they", "I/we", "you", "he/she", "Not sure"], correct: 1 },
+        { id: "r10", domain: "Reading", skill: "Analysis", difficultyRIT: base + 25, prompt: "A theme is...", choices: ["the plot", "the setting", "a central message", "the main character", "Not sure"], correct: 2 },
+        { id: "r11", domain: "Reading", skill: "Tone", difficultyRIT: base + 28, prompt: "Tone refers to the author's...", choices: ["word count", "attitude", "font size", "title", "Not sure"], correct: 1 },
+        { id: "r12", domain: "Reading", skill: "Figurative Language", difficultyRIT: base + 30, prompt: "‘He has a heart of stone’ is a...", choices: ["metaphor", "simile", "idiom", "hyperbole", "Not sure"], correct: 0 },
+      ];
+
+      const lang = [
+        { id: "l1", domain: "Language Arts", skill: "Grammar", difficultyRIT: base - 15, prompt: "Choose the correct form: ‘They ____ going.’", choices: ["is", "are", "am", "be", "Not sure"], correct: 1 },
+        { id: "l2", domain: "Language Arts", skill: "Mechanics", difficultyRIT: base - 10, prompt: "Add the comma: ‘After dinner we watched a movie.’", choices: ["After dinner, we watched a movie.", "After dinner we, watched a movie.", "After, dinner we watched a movie.", "After dinner we watched, a movie.", "Not sure"], correct: 0 },
+        { id: "l3", domain: "Language Arts", skill: "Usage", difficultyRIT: base - 5, prompt: "Select the correct word: ‘She did ____ homework.’", choices: ["there", "their", "they’re", "her", "Not sure"], correct: 3 },
+        { id: "l4", domain: "Language Arts", skill: "Editing", difficultyRIT: base + 0, prompt: "Which sentence is punctuated correctly?", choices: ["Its raining, bring an umbrella.", "It’s raining; bring an umbrella.", "It’s raining bring an umbrella.", "It’s raining,; bring an umbrella.", "Not sure"], correct: 1 },
+        { id: "l5", domain: "Language Arts", skill: "Style", difficultyRIT: base + 5, prompt: "‘Vivid language’ is language that is...", choices: ["unclear", "very descriptive", "formal", "passive", "Not sure"], correct: 1 },
+        { id: "l6", domain: "Language Arts", skill: "Argument", difficultyRIT: base + 10, prompt: "A thesis statement should...", choices: ["summarize every paragraph", "state the main claim", "list references", "define all terms", "Not sure"], correct: 1 },
+        { id: "l7", domain: "Language Arts", skill: "Syntax", difficultyRIT: base + 15, prompt: "Choose the sentence with parallel structure.", choices: ["She likes running, to swim, and biking.", "She likes to run, swim, and bike.", "She likes running, swimming, and to bike.", "She likes run, swim, and bike.", "Not sure"], correct: 1 },
+        { id: "l8", domain: "Language Arts", skill: "Research", difficultyRIT: base + 20, prompt: "The most credible source is typically...", choices: ["anonymous blog", "peer-reviewed journal", "celebrity post", "forum comment", "Not sure"], correct: 1 },
+        { id: "l9", domain: "Language Arts", skill: "Usage", difficultyRIT: base + 22, prompt: "Choose the correct homophone: ‘It’s ____ turn.’", choices: ["your", "you’re", "yore", "yuor", "Not sure"], correct: 0 },
+        { id: "l10", domain: "Language Arts", skill: "Punctuation", difficultyRIT: base + 25, prompt: "Select the sentence with correct apostrophe use.", choices: ["The dogs bone is buried.", "The dog's bone is buried.", "The dogs' bone is buried's.", "The dog bone's is buried.", "Not sure"], correct: 1 },
+        { id: "l11", domain: "Language Arts", skill: "Grammar", difficultyRIT: base + 30, prompt: "Select the sentence without an error.", choices: ["Him and me went to the store.", "He and I went to the store.", "He and me went to the store.", "Him and I went to the store.", "Not sure"], correct: 1 },
+      ];
+
+      return [...math, ...reading, ...lang];
+    }
+
+    // --- Adaptive Engine ---
+    const state = {
+      unlocked: false,
+      grade: null,
+      bank: [],
+      asked: new Set(),
+      perDomain: new Map(), // domain -> { theta, asked, correct, bySkill: Map(skill -> {asked, correct}) }
+      totalAsked: 0,
+      rotationIndex: 0,
+      history: [], // per-item history: { id, domain, skill, difficultyRIT, correct }
+      paused: false,
+      fastCount: 0,
+      lastShownAt: 0,
+    };
+
+    function initDomains(grade) {
+      state.perDomain.clear();
+      const start = START_RIT_BY_GRADE[grade] ?? 200;
+      for (const d of DOMAINS) {
+        state.perDomain.set(d, { theta: start, asked: 0, correct: 0, bySkill: new Map(), tier: 0, streak: 0 });
+      }
+      updateStatus();
+    }
+
+    function updateStatus() {
+      $('#status-lock').textContent = state.unlocked ? 'Unlocked' : 'Locked';
+      $('#status-grade').textContent = 'Grade: ' + (state.grade ?? '—');
+      $('#status-progress').textContent = `${state.totalAsked} / ${QUESTIONS_PER_DOMAIN * DOMAINS.length}`;
+      renderProgressBars();
+    }
+
+    function renderProgressBars() {
+      const root = $('#progress-bars');
+      root.innerHTML = '';
+      for (const d of DOMAINS) {
+        const dom = state.perDomain.get(d);
+        const asked = dom?.asked ?? 0;
+        const pct = Math.round((asked / QUESTIONS_PER_DOMAIN) * 100);
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong>${d}</strong><span class="note">${asked}/${QUESTIONS_PER_DOMAIN}</span></div>`;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('span');
+        fill.style.width = pct + '%';
+        bar.appendChild(fill);
+        root.appendChild(wrap);
+        root.appendChild(bar);
+      }
+    }
+
+    function logistic(p) { return 1 / (1 + Math.exp(-p)); }
+
+    // Advanced speed detection helpers
+    function expectedMinMs(domain, item) {
+      // Less sensitive baseline minima per domain
+      const base = domain === 'Reading' ? 2600 : domain === 'Math' ? 1900 : 1800;
+      // Difficulty adjustment around nominal 200 (reduced impact)
+      const diffAdj = clamp((item.difficultyRIT - 200) * 5, -300, 600);
+      // Prompt length adjustment (reduced impact)
+      const lenAdj = clamp(((item.prompt || '').length - 40) * 6, -400, 800);
+      return clamp(base + diffAdj + lenAdj, 900, 7000);
+    }
+
+    function updateTimeStats(dt) {
+      // Exponential moving stats (smoother updates -> less sensitive)
+      const alpha = 0.15;
+      if (!state.responseCount || state.responseCount === 0) {
+        state.emaDt = dt;
+        state.emaVar = 0;
+      } else {
+        const prevMean = state.emaDt;
+        state.emaDt = alpha * dt + (1 - alpha) * state.emaDt;
+        const diff = dt - prevMean;
+        state.emaVar = clamp(alpha * diff * diff + (1 - alpha) * state.emaVar, 0, 1e12);
+      }
+      state.responseCount = (state.responseCount || 0) + 1;
+    }
+
+    function updateTheta(domain, itemDifficulty, correct) {
+      const dom = state.perDomain.get(domain);
+      // Rasch-like with information-weighted step: P(correct) from theta - b, scaled; gradient step scaled by P*(1-P)
+      const scale = 12; // RIT scaling factor for sensitivity
+      const P = logistic((dom.theta - itemDifficulty) / scale);
+      const grad = (correct ? 1 : 0) - P; // positive if did better than expected
+      const info = P * (1 - P); // item information (max at 0.5)
+      const eta = 8 + 20 * info; // adaptive step size between ~8 and 13
+      dom.theta = clamp(dom.theta + eta * grad, 120, 300);
+    }
+
+    function selectNextDomain() {
+      // Rotate domains evenly until each reaches QUESTIONS_PER_DOMAIN
+      for (let i = 0; i < DOMAINS.length; i++) {
+        const idx = (state.rotationIndex + i) % DOMAINS.length;
+        const d = DOMAINS[idx];
+        const dom = state.perDomain.get(d);
+        if (dom.asked < QUESTIONS_PER_DOMAIN) {
+          state.rotationIndex = idx + 1; // next time start after this
+          return d;
+        }
+      }
+      return null; // finished
+    }
+
+    function selectItemForDomain(domain) {
+      const dom = state.perDomain.get(domain);
+      // 5-tier targeting: Very Easy(-24), Easy(-12), Medium(0), Hard(+12), Very Hard(+24)
+      const tier = clamp(dom.tier ?? 0, -2, 2);
+      const target = dom.theta + tier * 12;
+      const candidates = state.bank.filter(q => q.domain === domain && !state.asked.has(q.id));
+      if (candidates.length === 0) return null;
+      candidates.sort((a,b) => Math.abs(a.difficultyRIT - target) - Math.abs(b.difficultyRIT - target));
+      return candidates[0] ?? null;
+    }
+
+    function showItem(item) {
+      $('#pretest').classList.add('hidden');
+      $('#assessment').classList.remove('hidden');
+      $('#results').classList.add('hidden');
+      $('#pill-domain').textContent = `Domain: ${item.domain}`;
+      $('#pill-diff').textContent = `Target RIT: ${Math.round(state.perDomain.get(item.domain).theta)}`;
+      $('#q-text').textContent = item.prompt;
+      const box = $('#q-choices');
+      box.innerHTML = '';
+      item.choices.forEach((c, idx) => {
+        const div = document.createElement('div');
+        div.className = 'choice';
+        div.textContent = c;
+        div.onclick = () => answer(item, idx);
+        box.appendChild(div);
+      });
+      state.lastShownAt = Date.now();
+    }
+
+    const FAST_THRESHOLD_MS = 1200; // answering faster than this counts as a strike
+    const FAST_MAX_STRIKES = 2;     // consecutive fast answers before pausing
+    const PROCTOR_STEP_SEC = 20; // proctor pause unlock code changes every 20s
+
+    function nextStep() {
+      const d = selectNextDomain();
+      if (!d) return finish();
+      const next = selectItemForDomain(d);
+      if (!next) return finish();
+      showItem(next);
+    }
+
+    async function getProctorCode(seed){const t=Math.floor(Date.now()/1000);const ctr=Math.floor(t/PROCTOR_STEP_SEC);const label=textToBytes('PROCTOR');const msg=new Uint8Array(label.length+8);msg.set(label,0);msg.set(numTo8ByteBE(ctr),label.length);const keyBytes=await deriveKeyBytes(seed);const mac=await hmacSha256(keyBytes,msg);const off=mac[mac.length-1]&0x0f;const bin=((mac[off]&0x7f)<<24)|(mac[off+1]<<16)|(mac[off+2]<<8)|(mac[off+3]);return (bin%1e6).toString().padStart(6,'0');}
+
+    function openSpeedModal(msg = 'Answering too quickly detected. Proctor code required to continue.') {
+      const modal = document.getElementById('speed-modal');
+      const m = document.getElementById('speed-msg');
+      if (m) { m.textContent = msg; m.style.color = 'var(--muted)'; }
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeSpeedModal() {
+      const modal = document.getElementById('speed-modal');
+      if (modal) modal.classList.add('hidden');
+      const input = document.getElementById('speed-code');
+      if (input) input.value = '';
+    }
+
+    function answer(item, idx) {
+      if (state.paused) return; // ignore while paused
+      const now = Date.now();
+      const dt = now - (state.lastShownAt || now);
+      updateTimeStats(dt);
+
+      const dom = state.perDomain.get(item.domain);
+      const thetaBefore = dom.theta;
+      const scale = 12;
+      const expectedP = logistic((thetaBefore - item.difficultyRIT) / scale);
+
+      const correct = idx === item.correct;
+      state.asked.add(item.id);
+      dom.asked += 1;
+      if (correct) dom.correct += 1;
+      // streak and tier update: harder after 2 correct, easier after any wrong
+      if (correct) {
+        dom.streak = (dom.streak || 0) + 1;
+        if (dom.streak >= 2) { dom.tier = clamp((dom.tier || 0) + 1, -2, 2); dom.streak = 0; }
+      } else {
+        dom.streak = 0;
+        dom.tier = clamp((dom.tier || 0) - 1, -2, 2);
+      }
+      // update skill breakdown
+      const s = dom.bySkill.get(item.skill) || { asked: 0, correct: 0 };
+      s.asked += 1; if (correct) s.correct += 1; dom.bySkill.set(item.skill, s);
+      // update theta
+      updateTheta(item.domain, item.difficultyRIT, correct);
+      const thetaAfter = dom.theta;
+      // record history
+      state.history.push({ id: item.id, domain: item.domain, skill: item.skill, difficultyRIT: item.difficultyRIT, correct, dt, expectedP, thetaBefore: Math.round(thetaBefore), thetaAfter: Math.round(thetaAfter) });
+
+      state.totalAsked += 1;
+      updateStatus();
+
+      // Advanced speed check (less sensitive)
+      const dynMin = expectedMinMs(item.domain, item);
+      const std = Math.sqrt(state.emaVar || 0);
+      const z = std > 1 ? (dt - state.emaDt) / std : 0;
+      const quick = dt < dynMin;
+      const suspicious = (state.responseCount >= 3) && (quick || z < -2.5);
+      // Increase suspicion more slowly if suspicious
+      let inc = 0;
+      if (suspicious) {
+        inc += quick ? 0.7 : 0.3;
+        if (correct && dt < dynMin * 0.7) inc += 0.3;
+        if (state.history.length >= 2) {
+          const prev = state.history[state.history.length - 2];
+          if (prev && prev.domain === item.domain && prev.dt && prev.dt < expectedMinMs(prev.domain, prev)) inc += 0.2;
+        }
+        state.fastCount = (state.fastCount || 0) + 1;
+      } else {
+        state.fastCount = 0;
+      }
+      state.suspicionScore = Math.max(0, (state.suspicionScore || 0) * 0.75 + inc);
+      const needPause = state.suspicionScore >= 4.0 || state.fastCount >= 3;
+      if (needPause) {
+        state.paused = true;
+        state.pauseEvents = state.pauseEvents || [];
+        state.pauseEvents.push({ at: now, totalAnswered: state.totalAsked, reason: 'speed', z, dt, dynMin });
+        openSpeedModal();
+        return;
+      }
+
+      // next
+      nextStep();
+    }
+
+    async function finish() {
+      $('#assessment').classList.add('hidden');
+      $('#results').classList.remove('hidden');
+      let overall = 0;
+      DOMAINS.forEach(d => {
+        const dom = state.perDomain.get(d);
+        overall += dom.theta;
+      });
+      overall = Math.round(overall / DOMAINS.length);
+
+      const summary = `Overall RIT: ${overall}`;
+      $('#summary').innerHTML = `<div class=\"pill\">${summary}</div>`;
+
+      // Build domain summary table
+      const tbl = $('#domain-table');
+      tbl.innerHTML = `<tr><th>Domain</th><th>Estimated RIT</th><th>Accuracy</th><th>Strengths</th><th>Focus Areas</th></tr>`;
+      const perDomainSkills = new Map();
+      DOMAINS.forEach(d => {
+        const dom = state.perDomain.get(d);
+        const rit = Math.round(dom.theta);
+        const accPct = dom.asked ? Math.round((dom.correct / dom.asked) * 100) : 0;
+        const acc = dom.asked ? accPct + '%' : '—';
+        const skills = Array.from(dom.bySkill.entries());
+        skills.sort((a,b) => ((b[1].correct/(b[1].asked||1)) - (a[1].correct/(a[1].asked||1))));
+        const strengths = skills.filter(([k,v]) => (v.correct/(v.asked||1)) >= 0.6).map(([k])=>k).slice(0,3).join(', ') || '—';
+        const focus = skills.filter(([k,v]) => (v.correct/(v.asked||1)) < 0.6).map(([k])=>k).slice(0,3).join(', ') || '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d}</td><td>${rit}</td><td>${acc}</td><td>${strengths}</td><td>${focus}</td>`;
+        tbl.appendChild(tr);
+        perDomainSkills.set(d, skills);
+      });
+
+      // Insert charts section before the final divider
+      const resultsEl = $('#results');
+      const dividers = Array.from(resultsEl.querySelectorAll('.divider'));
+      const chartsAnchor = dividers[1] || resultsEl.lastElementChild;
+      const charts = document.createElement('div');
+      charts.id = 'charts';
+      charts.style.marginTop = '8px';
+
+      // Domain RIT bars (scaled to [120, 300])
+      const ritWrap = document.createElement('div');
+      ritWrap.className = 'card';
+      ritWrap.style.marginBottom = '12px';
+      ritWrap.innerHTML = `<strong style="display:block;margin-bottom:8px;">Domain RIT (scaled 120–300)</strong>`;
+      DOMAINS.forEach(d => {
+        const dom = state.perDomain.get(d);
+        const pct = Math.round(((dom.theta - 120) / (300 - 120)) * 100);
+        const row = document.createElement('div');
+        row.style.marginBottom = '8px';
+        row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span class=\"note\">${d}</span><span class=\"note\">RIT ${Math.round(dom.theta)}</span></div>`;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('span');
+        fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+        bar.appendChild(fill);
+        ritWrap.appendChild(row);
+        ritWrap.appendChild(bar);
+      });
+      charts.appendChild(ritWrap);
+
+      // Per-skill accuracy charts per domain
+      DOMAINS.forEach(d => {
+        const dom = state.perDomain.get(d);
+        const skills = perDomainSkills.get(d) || [];
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '12px';
+        card.innerHTML = `<strong style="display:block;margin-bottom:8px;">${d} — Skill Accuracy</strong>`;
+        if (!skills.length) {
+          const none = document.createElement('div');
+          none.className = 'note';
+          none.textContent = 'No skill data available.';
+          card.appendChild(none);
+        } else {
+          skills.forEach(([skill, stats]) => {
+            const pct = stats.asked ? Math.round((stats.correct / stats.asked) * 100) : 0;
+            const row = document.createElement('div');
+            row.style.marginBottom = '8px';
+            row.innerHTML = `<div style=\"display:flex;justify-content:space-between;align-items:center\"><span class=\"note\">${skill}</span><span class=\"note\">${pct}% (${stats.correct}/${stats.asked})</span></div>`;
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            const fill = document.createElement('span');
+            fill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+            bar.appendChild(fill);
+            card.appendChild(row);
+            card.appendChild(bar);
+          });
+        }
+        charts.appendChild(card);
+      });
+
+      resultsEl.insertBefore(charts, chartsAnchor);
+
+      // auto-scroll to results
+      $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // Save encrypted results locally
+      try { await __sec.saveResult(); } catch (e) {}
+    }
+
+    // --- Event wiring ---
+    const seedKey = 'assessment-seed';
+
+    function bytesToHex(arr) { return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join(''); }
+
+    function ensureSeed() {
+      // Generate a cryptographically random seed once and persist it
+      let s = localStorage.getItem(seedKey) || '';
+      if (!s) {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        s = 'seed-' + bytesToHex(bytes);
+        localStorage.setItem(seedKey, s);
+      }
+      return s;
+    }
+
+    function loadSeed() {
+      // Do not reveal the seed in the UI; just indicate presence
+      const s = localStorage.getItem(seedKey) || '';
+      const el = $('#seed-input');
+      if (el) {
+        el.value = '';
+        el.placeholder = s ? 'Seed is preset in storage' : 'Enter secure seed';
+      }
+      return s;
+    }
+
+    function saveSeed() {
+      const s = $('#seed-input').value.trim();
+      if (!s) { alert('Seed cannot be empty.'); return; }
+      localStorage.setItem(seedKey, s);
+      // Refresh code display based on new seed
+      showCurrentCode();
+    }
+
+    function setUnlocked(u) {
+      state.unlocked = u;
+      // Grade is fixed to 8th; keep selector disabled
+      $('#grade-select').disabled = true;
+      const nm = ($('#name-input').value || '').trim();
+      $('#btn-begin').disabled = !u || !nm;
+      updateStatus();
+    }
+
+    async function verifyCode() {
+      const seed = (localStorage.getItem(seedKey) || '').trim();
+      const code = $('#code-input').value.trim();
+      const msg = $('#verify-msg');
+      if (!seed) { msg.textContent = 'Set seed in proctor tools first.'; msg.style.color = 'var(--err)'; return; }
+      if (!code || code.length < 6) { msg.textContent = 'Enter a 6-digit code.'; msg.style.color = 'var(--err)'; return; }
+      const { window: win, codes, expiresIn } = await getValidCodes(seed);
+      if (isWindowUsed(seed, win)) {
+        msg.textContent = 'Code already used for this time window.';
+        msg.style.color = 'var(--err)';
+        return;
+      }
+      if (codes.includes(code)) {
+        setUnlocked(true);
+        msg.textContent = `Verified. Expires in ${expiresIn}s.`;
+        msg.style.color = 'var(--ok)';
+        markWindowUsed(seed, win);
+      } else {
+        msg.textContent = 'Invalid code.';
+        msg.style.color = 'var(--err)';
+        setUnlocked(false);
+      }
+    }
+
+    async function showCurrentCode() {
+      const seed = (localStorage.getItem(seedKey) || '').trim();
+      const out = $('#code-out');
+      const winEl = $('#code-window');
+      if (!out || !winEl) return; // Proctor UI not present
+      if (!seed) { out.textContent = 'Code: —'; winEl.textContent = 'Window: —'; return; }
+      const { window: win, codes, expiresIn } = await getValidCodes(seed);
+      out.textContent = `Code: ${codes[1]} (±1 step allowed)`;
+      winEl.textContent = `Window: ${win} — Expires in ${expiresIn}s`;
+    }
+
+    function resetUI() {
+      $('#pretest').classList.remove('hidden');
+      $('#assessment').classList.add('hidden');
+      $('#results').classList.add('hidden');
+      $('#q-text').textContent = '';
+      $('#q-choices').innerHTML = '';
+      $('#code-input').value = '';
+      $('#verify-msg').textContent = '';
+      $('#grade-select').value = '8';
+      $('#name-input').value = '';
+      state.name = '';
+      setUnlocked(false);
+      updateStatus();
+    }
+
+    function beginAssessment() {
+      const nm = ($('#name-input').value || '').trim();
+      if (!nm) { alert('Please enter your name to begin.'); return; }
+      state.name = nm;
+      const grade = '8';
+      state.grade = grade;
+      state.bank = createBank(grade);
+      state.asked.clear();
+      state.totalAsked = 0;
+      state.rotationIndex = 0;
+      state.history = [];
+      state.paused = false;
+      state.fastCount = 0;
+      state.lastShownAt = 0;
+      state.suspicionScore = 0;
+      state.responseCount = 0;
+      state.emaDt = 0;
+      state.emaVar = 0;
+      state.pauseEvents = [];
+      initDomains(grade);
+      const d = selectNextDomain();
+      const item = selectItemForDomain(d);
+      showItem(item);
+    }
+
+
+
+    // Wire events
+    const toggleEl = $('#toggle-proctor');
+    if (toggleEl) {
+      toggleEl.addEventListener('click', () => {
+        const panel = $('#proctor-panel');
+        if (panel) panel.classList.toggle('hidden');
+        showCurrentCode();
+      });
+    }
+
+    const saveBtn = $('#btn-save-seed');
+    if (saveBtn) saveBtn.addEventListener('click', () => { saveSeed(); showCurrentCode(); });
+    const genBtn = $('#btn-gen-code');
+    if (genBtn) genBtn.addEventListener('click', showCurrentCode);
+    $('#btn-verify').addEventListener('click', verifyCode);
+
+    $('#grade-select').addEventListener('change', () => {
+      const nm = ($('#name-input').value || '').trim();
+      $('#btn-begin').disabled = !state.unlocked || !$('#grade-select').value || !nm;
+      updateStatus();
+    });
+    $('#name-input').addEventListener('input', () => {
+      const nm = ($('#name-input').value || '').trim();
+      $('#btn-begin').disabled = !state.unlocked || !$('#grade-select').value || !nm;
+    });
+    $('#btn-begin').addEventListener('click', beginAssessment);
+    $('#btn-restart').addEventListener('click', () => { resetUI(); });
+
+    // Speed modal events
+    const verifyBtn = document.getElementById('speed-verify');
+    const codeInput = document.getElementById('speed-code');
+    const msgEl = document.getElementById('speed-msg');
+    async function tryVerifyProctor() {
+      const code = (codeInput?.value || '').trim();
+      const seed = (localStorage.getItem(seedKey) || '').trim();
+      const current = seed ? await getProctorCode(seed) : '';
+      if (seed && code && code === current) {
+        state.paused = false;
+        state.fastCount = 0;
+        if (msgEl) { msgEl.textContent = 'Verified'; msgEl.style.color = 'var(--ok)'; }
+        closeSpeedModal();
+        nextStep();
+      } else {
+        if (msgEl) { msgEl.textContent = 'Invalid or expired proctor code'; msgEl.style.color = 'var(--err)'; }
+      }
+    }
+    if (verifyBtn) verifyBtn.addEventListener('click', tryVerifyProctor);
+    if (codeInput) codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryVerifyProctor(); });
+
+    // Initialize
+    ensureSeed();
+    loadSeed();
+    resetUI();
+    showCurrentCode();
+    // refresh code display every 5s if proctor panel open
+    setInterval(() => {
+      const panel = $('#proctor-panel');
+      if (panel && !panel.classList.contains('hidden')) showCurrentCode();
+    }, 5000);
+
+    // Admin wiring
+    $('#btn-admin').addEventListener('click', () => { document.getElementById('admin-modal')?.classList.remove('hidden'); });
+    $('#admin-close').addEventListener('click', () => { document.getElementById('admin-modal')?.classList.add('hidden'); });
+    $('#admin-verify').addEventListener('click', () => { __sec.verifyAdmin(); });
+    $('#admin-refresh').addEventListener('click', () => { __sec.renderAdmin(); });
+    $('#admin-delete').addEventListener('click', () => { __sec.deleteSelected(); });
+
+    // Best-effort devtools/inspect disable
+    (function(){
+      const d=(e)=>{const k=e.key;const c=e.ctrlKey||e.metaKey;const s=e.shiftKey;const a=e.altKey;const bad=(k==='F12'||k==='F11'||(c&&s&&(k==='I'||k==='J'||k==='C'||k==='P'))||(c&&(k==='U'||k==='S'||k==='P'))||(e.metaKey&&a&&(k==='I'||k==='J')));if(bad){e.preventDefault();e.stopPropagation();return false}};const o=document.createElement('div');o.id='__blk';o.style.cssText='position:fixed;inset:0;background:#000b;backdrop-filter:blur(2px);z-index:100000;display:none;align-items:center;justify-content:center;color:#fff;font-weight:700;';o.textContent='Inspection disabled';document.body.appendChild(o);function s(v){o.style.display=v?'flex':'none'};document.addEventListener('contextmenu',e=>e.preventDefault(),true);document.addEventListener('keydown',d,true);setInterval(()=>{const w=window;const a=Math.abs((w.outerWidth-w.innerWidth))>160;const b=Math.abs((w.outerHeight-w.innerHeight))>160;s(a||b)},600);
+    })();
+    (function(){try{var q=document;['copy','cut','paste','selectstart','dragstart'].forEach(function(x){q.addEventListener(x,function(e){if(x==='paste' && e.target && e.target.id==='admin-code'){return;} e.preventDefault();e.stopPropagation()},true)});var st=document.createElement('style');st.innerHTML='*{user-select:none!important;-webkit-user-select:none!important}';document.head.appendChild(st);window.addEventListener('beforeprint',function(){var m=document.getElementById('__blk');if(m)m.style.display='flex'});window.addEventListener('afterprint',function(){var m=document.getElementById('__blk');if(m)m.style.display='none'});setInterval(function(){try{if(document.hasFocus&&document.hasFocus()===false){var m=document.getElementById('__blk');if(m)m.style.display='flex'}}catch(_){}} ,1200)}catch(_){}})();
+
+    /* Minimal, compact security/encryption helpers */
+    const __sec=(()=>{const te=new TextEncoder(),td=new TextDecoder();function b2a(b){let s="";for(const x of b)s+=String.fromCharCode(x);return btoa(s)}function a2b(a){const s=atob(a),b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b}
+      async function sha(s){const d=await crypto.subtle.digest('SHA-256',te.encode(s));return Array.from(new Uint8Array(d)).map(b=>b.toString(16).padStart(2,'0')).join('')}
+      async function k(seed){const raw=await crypto.subtle.digest('SHA-256',te.encode(seed));return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt'])}
+      async function enc(seed,plain){const iv=crypto.getRandomValues(new Uint8Array(12));const key=await k(seed);const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,te.encode(plain)));const out=new Uint8Array(iv.length+ct.length);out.set(iv,0);out.set(ct,iv.length);return b2a(out)}
+      async function dec(seed,b64){try{const all=a2b(b64);const iv=all.slice(0,12);const ct=all.slice(12);const key=await k(seed);const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct);return td.decode(pt)}catch(_){return ''}}
+      async function loadJSON(keyName,seed,def){const v=localStorage.getItem(keyName)||'';if(!v)return def;const s=await dec(seed,v);if(!s)return def;try{return JSON.parse(s)}catch{return def}}
+      async function saveJSON(keyName,seed,obj){const s=JSON.stringify(obj);const v=await enc(seed,s);localStorage.setItem(keyName,v)}
+      const A='admin-codes-enc',R='results-enc',seedKey='assessment-seed';
+      async function saveResult(){const seed=(localStorage.getItem(seedKey)||'').trim();if(!seed)return;const rec={name:(window.state?.name||''),date:new Date().toISOString(),overall:(()=>{let o=0;DOMAINS.forEach(d=>o+=Math.round(state.perDomain.get(d).theta));return Math.round(o/DOMAINS.length)})(),perDomain:(()=>{const m={};DOMAINS.forEach(d=>{const dom=state.perDomain.get(d);const skills={};(dom.bySkill?Array.from(dom.bySkill.entries()):[]).forEach(([k,v])=>{skills[k]={asked:v.asked,correct:v.correct}});m[d]={theta:Math.round(dom.theta),asked:dom.asked,correct:dom.correct,skills}});return m})(),history:state.history.slice(0)};const arr=await loadJSON(R,seed,[]);arr.push(rec);await saveJSON(R,seed,arr)}
+      async function verifyAdmin(){const seed=(localStorage.getItem(seedKey)||'').trim();const codeEl=document.getElementById('admin-code');const msg=document.getElementById('admin-msg');if(!seed){msg.textContent='Seed not set';msg.style.color='var(--err)';return}const code=(codeEl?.value||'').trim();if(!code){msg.textContent='Enter code';msg.style.color='var(--err)';return}const h=await sha(code);const store=await loadJSON(A,seed,{issued:[],used:[]});const i=store.issued.indexOf(h);if(i===-1){msg.textContent='Invalid or already used';msg.style.color='var(--err)';return}store.issued.splice(i,1);store.used.push(h);await saveJSON(A,seed,store);codeEl.value='';msg.textContent='Verified';msg.style.color='var(--ok)';document.getElementById('admin-step-login')?.classList.add('hidden');document.getElementById('admin-step-view')?.classList.remove('hidden');await renderAdmin()}
+      function rb(rec){const wrap=document.createElement('div');wrap.className='card';wrap.style.padding='12px';const sum=document.createElement('div');sum.innerHTML=`<div class=\"pill\">Overall RIT: ${rec.overall}</div>`;wrap.appendChild(sum);const tbl=document.createElement('table');tbl.className='result-table';tbl.innerHTML='<tr><th>Domain</th><th>Estimated RIT</th><th>Accuracy</th><th>Strengths</th><th>Focus Areas</th></tr>';Object.keys(rec.perDomain||{}).forEach(d=>{const v=rec.perDomain[d];const acc=v.asked?Math.round(v.correct/v.asked*100):0;const skills=Object.entries(v.skills||{});skills.sort((a,b)=>((b[1].correct/(b[1].asked||1))-(a[1].correct/(a[1].asked||1))));const strengths=skills.filter(([k,s])=>(s.correct/(s.asked||1))>=0.6).map(([k])=>k).slice(0,3).join(', ')||'—';const focus=skills.filter(([k,s])=>(s.correct/(s.asked||1))<0.6).map(([k])=>k).slice(0,3).join(', ')||'—';const tr=document.createElement('tr');tr.innerHTML=`<td>${d}</td><td>${v.theta}</td><td>${acc}% (${v.correct}/${v.asked})</td><td>${strengths}</td><td>${focus}</td>`;tbl.appendChild(tr)});wrap.appendChild(tbl);const charts=document.createElement('div');charts.style.marginTop='8px';const ritWrap=document.createElement('div');ritWrap.className='card';ritWrap.style.marginBottom='12px';ritWrap.innerHTML='<strong style="display:block;margin-bottom:8px;">Domain RIT (scaled 120–300)</strong>';Object.keys(rec.perDomain||{}).forEach(d=>{const v=rec.perDomain[d];const pct=Math.round(((v.theta-120)/(300-120))*100);const row=document.createElement('div');row.style.marginBottom='8px';row.innerHTML=`<div style=\"display:flex;justify-content:space-between;align-items:center\"><span class=\"note\">${d}</span><span class=\"note\">RIT ${v.theta}</span></div>`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('span');fill.style.width=Math.max(0,Math.min(100,pct))+'%';bar.appendChild(fill);ritWrap.appendChild(row);ritWrap.appendChild(bar)});charts.appendChild(ritWrap);Object.keys(rec.perDomain||{}).forEach(d=>{const v=rec.perDomain[d];const skills=Object.entries(v.skills||{});const card=document.createElement('div');card.className='card';card.style.marginBottom='12px';card.innerHTML=`<strong style=\"display:block;margin-bottom:8px;\">${d} — Skill Accuracy</strong>`;if(!skills.length){const none=document.createElement('div');none.className='note';none.textContent='No skill data available.';card.appendChild(none)}else{skills.forEach(([sk,st])=>{const pct=st.asked?Math.round((st.correct/st.asked)*100):0;const row=document.createElement('div');row.style.marginBottom='8px';row.innerHTML=`<div style=\"display:flex;justify-content:space-between;align-items:center\"><span class=\"note\">${sk}</span><span class=\"note\">${pct}% (${st.correct}/${st.asked})</span></div>`;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('span');fill.style.width=Math.max(0,Math.min(100,pct))+'%';bar.appendChild(fill);card.appendChild(row);card.appendChild(bar)})}
+        charts.appendChild(card)});wrap.appendChild(charts);return wrap}
+      async function renderAdmin(){const seed=(localStorage.getItem(seedKey)||'').trim();const sel=document.getElementById('admin-select');const viz=document.getElementById('admin-viz');const namesEl=document.getElementById('admin-names');if(!sel||!viz)return;const arr=await loadJSON(R,seed,[]);sel.innerHTML='';arr.forEach((r,i)=>{const opt=document.createElement('option');opt.value=String(i);opt.textContent=`#${i+1} ${r.name} — ${new Date(r.date).toLocaleString()}`;sel.appendChild(opt)});if(namesEl){if(!arr.length){namesEl.textContent='No results saved.'}else{namesEl.innerHTML='';arr.forEach((r,i)=>{const row=document.createElement('div');row.style.display='flex';row.style.justifyContent='space-between';row.style.alignItems='center';row.style.gap='8px';row.style.padding='4px 0';row.innerHTML=`<span>${i+1}. ${r.name}</span><span class=\"note\">${new Date(r.date).toLocaleString()}</span>`;row.onclick=()=>{sel.value=String(i);sel.dispatchEvent(new Event('change'))};namesEl.appendChild(row)})}}function draw(idx){viz.innerHTML='';if(arr[idx]){const h=document.createElement('div');h.className='note';h.style.marginBottom='6px';h.textContent=`Name: ${arr[idx].name} • Date: ${new Date(arr[idx].date).toLocaleString()}`;viz.appendChild(h);viz.appendChild(rb(arr[idx]))}else{viz.textContent='No results saved.'}};sel.onchange=()=>draw(Number(sel.value||0));draw(0)}
+      async function deleteSelected(){const seed=(localStorage.getItem(seedKey)||'').trim();const sel=document.getElementById('admin-select');if(!seed||!sel)return;const idx=parseInt(sel.value||'0',10);let arr=await loadJSON(R,seed,[]);if(!arr.length||isNaN(idx)||idx<0||idx>=arr.length)return;if(!confirm('Delete selected record? This cannot be undone.'))return;arr.splice(idx,1);await saveJSON(R,seed,arr);await renderAdmin()}
+      return {saveResult,verifyAdmin,renderAdmin,deleteSelected}
+    })();
+
+  </script>
+</body>
+</html>
