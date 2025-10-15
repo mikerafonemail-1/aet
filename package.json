@@ -1,0 +1,17 @@
+{
+  "name": "map-like-adaptive-test-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend for one-time code verification and embedding support",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "NODE_ENV=development node index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
